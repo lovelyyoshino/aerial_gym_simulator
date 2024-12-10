@@ -14,15 +14,20 @@ logger = CustomLogger("custom_task")
 
 
 def dict_to_class(dict):
+    """将字典转换为类对象"""
     return type("ClassFromDict", (object,), dict)
 
 
 class CustomTask(BaseTask):
     def __init__(self, task_config):
-        super().__init__(task_config)
-        self.device = self.task_config.device
-        # write your own implementation herer
+        """初始化自定义任务类
+        参数:
+            task_config: 任务的配置对象，包含有关仿真和环境的信息
+        """
+        super().__init__(task_config)  # 调用基类的初始化方法
+        self.device = self.task_config.device  # 获取设备信息
 
+        # 构建仿真环境
         self.sim_env = SimBuilder().build_env(
             sim_name=self.task_config.sim_name,
             env_name=self.task_config.env_name,
@@ -31,8 +36,7 @@ class CustomTask(BaseTask):
             args=self.task_config.args,
         )
 
-        # Implement something here that is relevant to your task
-
+        # 初始化任务观察
         self.task_obs = {
             "observations": torch.zeros(
                 (self.sim_env.num_envs, self.task_config.observation_space_dim),
@@ -56,35 +60,60 @@ class CustomTask(BaseTask):
         }
 
     def close(self):
-        self.sim_env.delete_env()
+        """关闭仿真环境"""
+        self.sim_env.delete_env()  # 删除环境
 
     def reset(self):
-        # write your implementation here
-        return None
+        """重置环境状态
+        返回:
+            None: 这里可以返回任何与任务相关的初始状态
+        """
+        return None  # 这里可以实现具体的重置逻辑
 
     def reset_idx(self, env_ids):
-        # write your implementation here
+        """根据环境ID重置特定环境
+        参数:
+            env_ids: 需要重置的环境的ID列表
+        """
+        # 这里可以实现具体的重置逻辑
         return
 
     def render(self):
-        return self.sim_env.render()
+        """渲染当前环境状态
+        返回:
+            渲染结果: 返回仿真环境的渲染输出
+        """
+        return self.sim_env.render()  # 调用仿真环境的渲染方法
 
     def step(self, actions):
-        # this uses the action, gets observations
-        # calculates rewards, returns tuples
-        # In this case, the episodes that are terminated need to be
-        # first reset, and the first obseration of the new episode
-        # needs to be returned.
+        """执行一步仿真并返回观察、奖励等信息
+        参数:
+            actions: 当前步骤的动作
+        返回:
+            None: 这里可以返回与任务相关的输出
+        """
+        # 使用动作，获取观察结果
+        # 计算奖励，返回元组
+        # 在这种情况下，需要首先重置终止的回合，并返回新回合的第一个观察
+        self.sim_env.step(actions=actions)  # 执行动作并更新环境状态
 
-        # repace this with something that is relevant to your task
-        self.sim_env.step(actions=actions)
-
-        return None  # replace this with something relevant to your task
+        return None  # 这里可以实现具体的返回逻辑
 
 
 @torch.jit.script
 def compute_reward(
     pos_error, crashes, action, prev_action, curriculum_level_multiplier, parameter_dict
 ):
-    # something here
-    return 0
+    """计算奖励函数
+    参数:
+        pos_error: 位置误差
+        crashes: 碰撞信息
+        action: 当前动作
+        prev_action: 上一动作
+        curriculum_level_multiplier: 课程级别的乘数
+        parameter_dict: 一些参数字典
+    返回:
+        float: 计算得到的奖励值
+    """
+    # 这里可以实现具体的奖励计算逻辑
+    return 0  # 返回计算的奖励值，这里为示例返回0

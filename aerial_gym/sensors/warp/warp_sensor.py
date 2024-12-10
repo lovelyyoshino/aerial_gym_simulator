@@ -21,16 +21,19 @@ from aerial_gym.utils.logging import CustomLogger, logging
 logger = CustomLogger("WarpSensor")
 logger.setLoggerLevel(logging.INFO)
 
-
+# WarpSensor类继承自BaseSensor类，负责初始化和管理传感器（如相机和激光雷达）的状态和数据。
 class WarpSensor(BaseSensor):
     def __init__(self, sensor_config, num_envs, mesh_id_list, device):
+        # 调用父类构造函数初始化基本传感器设置
         super().__init__(sensor_config=sensor_config, num_envs=num_envs, device=device)
-        self.mesh_id_list = mesh_id_list
-        self.device = device
-        self.num_sensors = self.cfg.num_sensors
+        self.mesh_id_list = mesh_id_list  # 传感器所使用的网格ID列表
+        self.device = device  # 设备类型（CPU/GPU）
+        self.num_sensors = self.cfg.num_sensors  # 传感器数量
 
+        # 将mesh_id_list转换为warp数组
         self.mesh_ids_array = wp.array(mesh_id_list, dtype=wp.uint64)
 
+        # 根据传感器类型实例化相应的传感器
         if self.cfg.sensor_type == "lidar":
             self.sensor = WarpLidar(
                 num_envs=self.num_envs,
@@ -71,14 +74,16 @@ class WarpSensor(BaseSensor):
             raise NotImplementedError
 
     def init_tensors(self, global_tensor_dict):
+        # 初始化传感器的张量
         super().init_tensors(global_tensor_dict)
         logger.debug(f"Initializing sensor tensors")
-        # here a new view of robot position and orienentation is created since the robot has multiple sensors
+        # 这里为机器人位置和方向创建新的视图，因为机器人有多个传感器
         self.robot_position = self.robot_position.unsqueeze(1).expand(-1, self.num_sensors, -1)
         self.robot_orientation = self.robot_orientation.unsqueeze(1).expand(
             -1, self.num_sensors, -1
         )
 
+        # 为传感器的最小和最大平移初始化张量
         self.sensor_min_translation = torch.tensor(
             self.cfg.min_translation, device=self.device, requires_grad=False
         ).expand(self.num_envs, self.num_sensors, -1)
@@ -91,6 +96,8 @@ class WarpSensor(BaseSensor):
         self.sensor_max_rotation = torch.deg2rad(
             torch.tensor(self.cfg.max_euler_rotation_deg, device=self.device, requires_grad=False)
         ).expand(self.num_envs, self.num_sensors, -1)
+
+        # 计算传感器框架的旋转
         euler_sensor_frame_rot = self.cfg.euler_frame_rot_deg
         sensor_frame_rot_rad = torch.deg2rad(
             torch.tensor(euler_sensor_frame_rot, device=self.device, requires_grad=False)
@@ -98,6 +105,7 @@ class WarpSensor(BaseSensor):
         sensor_quat = quat_from_euler_xyz_tensor(sensor_frame_rot_rad)
         self.sensor_data_frame_quat = sensor_quat.expand(self.num_envs, self.num_sensors, -1)
 
+        # 初始化传感器局部位置和方向
         self.sensor_local_position = torch.zeros(
             (self.num_envs, self.num_sensors, 3),
             device=self.device,
@@ -108,13 +116,17 @@ class WarpSensor(BaseSensor):
             device=self.device,
             requires_grad=False,
         )
-        self.sensor_local_orientation[..., 3] = 1.0
+        self.sensor_local_orientation[..., 3] = 1.0  # 单位四元数的w分量
+
+        # 计算传感器局部方向的均值
         mean_euler_rotation = (self.sensor_min_rotation + self.sensor_max_rotation) / 2.0
         self.sensor_local_orientation[:] = quat_from_euler_xyz(
             mean_euler_rotation[..., 0],
             mean_euler_rotation[..., 1],
             mean_euler_rotation[..., 2],
         )
+
+        # 初始化传感器的全局位置和方向
         self.sensor_position = torch.zeros(
             (self.num_envs, self.num_sensors, 3),
             device=self.device,
@@ -125,7 +137,9 @@ class WarpSensor(BaseSensor):
             device=self.device,
             requires_grad=False,
         )
-        self.sensor_orientation[..., 3] = 1.0
+        self.sensor_orientation[..., 3] = 1.0  # 单位四元数的w分量
+
+        # 设置传感器的位姿和图像张量
         self.sensor.set_pose_tensor(
             positions=self.sensor_position, orientations=self.sensor_orientation
         )
@@ -137,17 +151,18 @@ class WarpSensor(BaseSensor):
         logger.debug(f"[DONE] Initializing sensor tensors")
 
     def reset(self):
+        # 重置传感器状态
         env_ids = torch.arange(self.num_envs, device=self.device)
         self.reset_idx(env_ids)
 
     def reset_idx(self, env_ids):
         if self.cfg.randomize_placement == True:
-            # sample local position from min and max translations
+            # 从最小和最大平移中随机采样局部位置
             self.sensor_local_position[env_ids] = torch_rand_float_tensor(
                 self.sensor_min_translation[env_ids],
                 self.sensor_max_translation[env_ids],
             )
-            # sample local orientation from min and max rotations
+            # 从最小和最大旋转中随机采样局部方向
             local_euler_rotation = torch_rand_float_tensor(
                 self.sensor_min_rotation[env_ids], self.sensor_max_rotation[env_ids]
             )
@@ -157,20 +172,19 @@ class WarpSensor(BaseSensor):
                 local_euler_rotation[..., 2],
             )
         else:
-            # Do nothing
+            # 不进行任何操作
             pass
         return
 
     def initialize_sensor(self):
+        # 初始化传感器并捕获数据
         self.sensor.capture()
 
     def update(self):
-        # transform local position and orientation to world frame before performing ray_casting
-        # tf_apply(self.root_quats, self.root_positions, self.sensor_local_pos)
+        # 在执行射线投射之前，将局部位置和方向转换到世界坐标系
         self.sensor_position[:] = tf_apply(
             self.robot_orientation, self.robot_position, self.sensor_local_position
         )
-        # quat_mul(self.root_quats, quat_mul(self.sensor_local_quat, self.correct_sensor_frame_quat))
         self.sensor_orientation[:] = quat_mul(
             self.robot_orientation,
             quat_mul(self.sensor_local_orientation, self.sensor_data_frame_quat),
@@ -184,16 +198,18 @@ class WarpSensor(BaseSensor):
         self.sensor.capture()
         logger.debug("[DONE] Capturing sensor data")
 
+        # 应用噪声和范围限制
         self.apply_noise()
         if self.cfg.sensor_type in ["camera", "lidar"]:
             self.apply_range_limits()
             self.normalize_observation()
 
     def apply_range_limits(self):
+        # 应用传感器范围限制
         if self.cfg.return_pointcloud == True:
-            # if pointcloud is in the world frame, the pointcloud range will not be normalized
+            # 如果点云在世界坐标系中，则不进行归一化
             if self.cfg.pointcloud_in_world_frame == False:
-                logger.debug("Pointcoud is not in world frame")
+                logger.debug("Pointcloud is not in world frame")
                 self.pixels[
                     self.pixels.norm(dim=4, keepdim=True).expand(-1, -1, -1, -1, 3)
                     > self.cfg.max_range
@@ -210,6 +226,7 @@ class WarpSensor(BaseSensor):
             logger.debug("[DONE] Clipping pointcloud values to sensor range")
 
     def normalize_observation(self):
+        # 归一化观察值
         if self.cfg.normalize_range and self.cfg.pointcloud_in_world_frame == False:
             logger.debug("Normalizing pointcloud values")
             self.pixels[:] = self.pixels / self.cfg.max_range
@@ -217,6 +234,7 @@ class WarpSensor(BaseSensor):
             logger.debug("Pointcloud is in world frame. not normalizing")
 
     def apply_noise(self):
+        # 应用传感器噪声
         if self.cfg.sensor_noise.enable_sensor_noise == True:
             logger.debug("Applying sensor noise")
             self.pixels[:] = torch.normal(
@@ -231,4 +249,5 @@ class WarpSensor(BaseSensor):
             ] = self.cfg.near_out_of_range_value
 
     def get_observation(self):
+        # 获取传感器的观察值
         return self.pixels, self.segmentation_pixels

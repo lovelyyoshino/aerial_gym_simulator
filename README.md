@@ -1,109 +1,107 @@
-# Isaac Gym Environments for Legged Robots #
-This repository provides the environment used to train ANYmal (and other robots) to walk on rough terrain using NVIDIA's Isaac Gym.
-It includes all components needed for sim-to-real transfer: actuator network, friction & mass randomization, noisy observations and random pushes during training.  
+# [Aerial Gym Simulator](index.md)
 
-**Maintainer**: Nikita Rudin  
-**Affiliation**: Robotic Systems Lab, ETH Zurich  
-**Contact**: rudinn@ethz.ch  
+欢迎来到[Aerial Gym Simulator](https://www.github.com/ntnu-arl/aerial_gym_simulator)的仓库。请参考我们的[文档](https://ntnu-arl.github.io/aerial_gym_simulator/)以获取有关如何开始使用模拟器以及如何将其应用于您的研究的详细信息。
 
----
+Aerial Gym Simulator是一个高保真、基于物理的模拟器，旨在训练微型无人机（MAV）平台，如多旋翼飞行器，利用基于学习的方法学习飞行和在复杂环境中导航。该环境基于底层的[NVIDIA Isaac Gym](https://developer.nvidia.com/isaac-gym)模拟器构建。我们提供标准平面四旋翼平台的空中机器人模型，以及具有任意配置的全驱动平台和多旋翼飞行器。这些配置支持低级和高级几何控制器，这些控制器驻留在GPU上，并为数千个多旋翼飞行器的同时控制提供并行化。
 
-### :bell: Announcement (09.01.2024) ###
+这是模拟器的*第二个版本*，包括多种新功能和改进。任务定义和环境配置允许对所有环境实体进行细粒度的定制，而无需处理大型单一环境文件。自定义渲染框架允许以高速获取深度和分割图像，并可用于模拟具有不同属性的自定义传感器，如激光雷达。该模拟器是开源的，并根据[BSD-3-Clause License](https://opensource.org/licenses/BSD-3-Clause)发布。
 
-With the shift from Isaac Gym to Isaac Sim at NVIDIA, we have migrated all the environments from this work to [Isaac Lab](https://github.com/isaac-sim/IsaacLab). Following this migration, this repository will receive limited updates and support. We encourage all users to migrate to the new framework for their applications.
+Aerial Gym Simulator允许您在不到一分钟的时间内训练基于状态的控制策略：
 
-Information about this work's locomotion-related tasks in Isaac Lab is available [here](https://isaac-sim.github.io/IsaacLab/source/features/environments.html#locomotion).
+![Aerial Gym Simulator](./docs/gifs/Aerial%20Gym%20Position%20Control.gif)
 
----
+并在不到一小时的时间内训练基于视觉的导航策略：
 
-### Useful Links ###
+![RL for Navigation](./docs/gifs/rl_for_navigation_example.gif)
 
-Project website: https://leggedrobotics.github.io/legged_gym/   
-Paper: https://arxiv.org/abs/2109.11978
+配备了GPU加速和可定制的基于光线投射的激光雷达和相机传感器，具有深度和分割能力：
 
-### Installation ###
-1. Create a new python virtual env with python 3.6, 3.7 or 3.8 (3.8 recommended)
-2. Install pytorch 1.10 with cuda-11.3:
-    - `pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html`
-3. Install Isaac Gym
-   - Download and install Isaac Gym Preview 3 (Preview 2 will not work!) from https://developer.nvidia.com/isaac-gym
-   - `cd isaacgym/python && pip install -e .`
-   - Try running an example `cd examples && python 1080_balls_of_solitude.py`
-   - For troubleshooting check docs `isaacgym/docs/index.html`)
-4. Install rsl_rl (PPO implementation)
-   - Clone https://github.com/leggedrobotics/rsl_rl
-   -  `cd rsl_rl && git checkout v1.0.2 && pip install -e .` 
-5. Install legged_gym
-    - Clone this repository
-   - `cd legged_gym && pip install -e .`
+![Depth Frames 1](./docs/gifs/camera_depth_frames.gif) ![Lidar Depth Frames 1](./docs/gifs/lidar_depth_frames.gif)
 
-### CODE STRUCTURE ###
-1. Each environment is defined by an env file (`legged_robot.py`) and a config file (`legged_robot_config.py`). The config file contains two classes: one containing  all the environment parameters (`LeggedRobotCfg`) and one for the training parameters (`LeggedRobotCfgPPo`).  
-2. Both env and config classes use inheritance.  
-3. Each non-zero reward scale specified in `cfg` will add a function with a corresponding name to the list of elements which will be summed to get the total reward.  
-4. Tasks must be registered using `task_registry.register(name, EnvClass, EnvConfig, TrainConfig)`. This is done in `envs/__init__.py`, but can also be done from outside of this repository.  
+![Seg Frames 1](./docs/gifs/camera_seg_frames.gif) ![Lidar Seg Frames 1](./docs/gifs/lidar_seg_frames.gif)
 
-### Usage ###
-1. Train:  
-  ```python legged_gym/scripts/train.py --task=anymal_c_flat```
-    -  To run on CPU add following arguments: `--sim_device=cpu`, `--rl_device=cpu` (sim on CPU and rl on GPU is possible).
-    -  To run headless (no rendering) add `--headless`.
-    - **Important**: To improve performance, once the training starts press `v` to stop the rendering. You can then enable it later to check the progress.
-    - The trained policy is saved in `issacgym_anymal/logs/<experiment_name>/<date_time>_<run_name>/model_<iteration>.pt`. Where `<experiment_name>` and `<run_name>` are defined in the train config.
-    -  The following command line arguments override the values set in the config files:
-     - --task TASK: Task name.
-     - --resume:   Resume training from a checkpoint
-     - --experiment_name EXPERIMENT_NAME: Name of the experiment to run or load.
-     - --run_name RUN_NAME:  Name of the run.
-     - --load_run LOAD_RUN:   Name of the run to load when resume=True. If -1: will load the last run.
-     - --checkpoint CHECKPOINT:  Saved model checkpoint number. If -1: will load the last checkpoint.
-     - --num_envs NUM_ENVS:  Number of environments to create.
-     - --seed SEED:  Random seed.
-     - --max_iterations MAX_ITERATIONS:  Maximum number of training iterations.
-2. Play a trained policy:  
-```python legged_gym/scripts/play.py --task=anymal_c_flat```
-    - By default, the loaded policy is the last model of the last run of the experiment folder.
-    - Other runs/model iteration can be selected by setting `load_run` and `checkpoint` in the train config.
+## 特性
 
-### Adding a new environment ###
-The base environment `legged_robot` implements a rough terrain locomotion task. The corresponding cfg does not specify a robot asset (URDF/ MJCF) and has no reward scales. 
+- **模块化和可扩展设计**，允许用户轻松创建自定义环境、机器人、传感器、任务和控制器，并通过修改[模拟组件](https://ntnu-arl.github.io/aerial_gym_simulator/4_simulation_components)以编程方式动态更改参数。
+- **从头重写**，提供对每个模拟组件的高度控制，并能够广泛[定制](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization)模拟器以满足您的需求。
+- **高保真物理引擎**，利用[NVIDIA Isaac Gym](https://developer.nvidia.com/isaac-gym/download)，为模拟多旋翼平台提供高保真物理引擎，并可以添加对自定义物理引擎后端和渲染管道的支持。
+- **并行几何控制器**，驻留在GPU上，为[数千个多旋翼](https://ntnu-arl.github.io/aerial_gym_simulator/3_robots_and_controllers/#controllers)飞行器的同时控制提供并行化。
+- **自定义渲染框架**（基于[NVIDIA Warp](https://nvidia.github.io/warp/)）用于设计[自定义传感器](https://ntnu-arl.github.io/aerial_gym_simulator/8_sensors_and_rendering/#warp-sensors)并执行并行化的基于内核的操作。
+- **模块化和可扩展**，允许用户轻松创建[自定义环境](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization/#custom-environments)、[机器人](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization/#custom-robots)、[传感器](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization/#custom-sensors)、[任务](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization/#custom-tasks)和[控制器](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization/#custom-controllers)。
+- **可添加基于RL的控制和导航策略**，用于机器人学习任务。[包括用于开始训练您自己的机器人的脚本。](https://ntnu-arl.github.io/aerial_gym_simulator/6_rl_training)
 
-1. Add a new folder to `envs/` with `'<your_env>_config.py`, which inherit from an existing environment cfgs  
-2. If adding a new robot:
-    - Add the corresponding assets to `resources/`.
-    - In `cfg` set the asset path, define body names, default_joint_positions and PD gains. Specify the desired `train_cfg` and the name of the environment (python class).
-    - In `train_cfg` set `experiment_name` and `run_name`
-3. (If needed) implement your environment in <your_env>.py, inherit from an existing environment, overwrite the desired functions and/or add your reward functions.
-4. Register your env in `isaacgym_anymal/envs/__init__.py`.
-5. Modify/Tune other parameters in your `cfg`, `cfg_train` as needed. To remove a reward set its scale to zero. Do not modify parameters of other envs!
+> [!重要]
+> 对[**Isaac Lab**](https://isaac-sim.github.io/IsaacLab/)和[**Isaac Sim**](https://developer.nvidia.com/isaac/sim)的支持目前正在开发中。我们预计将在不久的将来发布此功能。
 
+请参考详细介绍我们模拟器先前版本的论文，以获取有关创建Aerial Gym Simulator的动机和设计原则的见解：[https://arxiv.org/abs/2305.16510](https://arxiv.org/abs/2305.16510)（链接将很快更新以反映新版本！）。
 
-### Troubleshooting ###
-1. If you get the following error: `ImportError: libpython3.8m.so.1.0: cannot open shared object file: No such file or directory`, do: `sudo apt install libpython3.8`. It is also possible that you need to do `export LD_LIBRARY_PATH=/path/to/libpython/directory` / `export LD_LIBRARY_PATH=/path/to/conda/envs/your_env/lib`(for conda user. Replace /path/to/ to the corresponding path.).
+## 为什么选择Aerial Gym Simulator？
 
-### Known Issues ###
-1. The contact forces reported by `net_contact_force_tensor` are unreliable when simulating on GPU with a triangle mesh terrain. A workaround is to use force sensors, but the force are propagated through the sensors of consecutive bodies resulting in an undesirable behaviour. However, for a legged robot it is possible to add sensors to the feet/end effector only and get the expected results. When using the force sensors make sure to exclude gravity from the reported forces with `sensor_options.enable_forward_dynamics_forces`. Example:
-```
-    sensor_pose = gymapi.Transform()
-    for name in feet_names:
-        sensor_options = gymapi.ForceSensorProperties()
-        sensor_options.enable_forward_dynamics_forces = False # for example gravity
-        sensor_options.enable_constraint_solver_forces = True # for example contacts
-        sensor_options.use_world_frame = True # report forces in world frame (easier to get vertical components)
-        index = self.gym.find_asset_rigid_body_index(robot_asset, name)
-        self.gym.create_asset_force_sensor(robot_asset, index, sensor_pose, sensor_options)
-    (...)
+Aerial Gym Simulator旨在同时模拟数千个MAV，并配备了在现实世界系统中使用的低级和高级控制器。此外，新的自定义光线投射允许以超快的速度渲染环境，以便使用来自环境的深度和分割进行任务。
 
-    sensor_tensor = self.gym.acquire_force_sensor_tensor(self.sim)
-    self.gym.refresh_force_sensor_tensor(self.sim)
-    force_sensor_readings = gymtorch.wrap_tensor(sensor_tensor)
-    self.sensor_forces = force_sensor_readings.view(self.num_envs, 4, 6)[..., :3]
-    (...)
+此新版本中的优化代码允许在不到一分钟的时间内训练用于机器人控制的电机命令策略，并在不到一小时的时间内训练基于视觉的导航策略。提供了大量示例，以便用户快速开始训练自定义机器人的策略。
 
-    self.gym.refresh_force_sensor_tensor(self.sim)
-    contact = self.sensor_forces[:, :, 2] > 1.
+## 引用
+在您的研究中引用Aerial Gym Simulator时，请引用以下论文：
+
+```bibtex
+@misc{kulkarni2023aerialgymisaac,
+      title={Aerial Gym -- Isaac Gym Simulator for Aerial Robots}, 
+      author={Mihir Kulkarni and Theodor J. L. Forgaard and Kostas Alexis},
+      year={2023},
+      eprint={2305.16510},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2305.16510}, 
+}
 ```
 
+如果您在导航任务中使用了与此模拟器一起提供的强化学习策略，请引用以下论文：
+
+```bibtex
+@misc{kulkarni2024reinforcementlearningcollisionfreeflight,
+      title={Reinforcement Learning for Collision-free Flight Exploiting Deep Collision Encoding}, 
+      author={Mihir Kulkarni and Kostas Alexis},
+      year={2024},
+      eprint={2402.03947},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2402.03947}, 
+}
+```
+
+## 快速链接
+为了方便您，这里有一些指向文档中最重要部分的快速链接：
+
+- [安装](https://ntnu-arl.github.io/aerial_gym_simulator/2_getting_started/#installation)
+- [机器人和控制器](https://ntnu-arl.github.io/aerial_gym_simulator/3_robots_and_controllers)
+- [传感器和渲染能力](https://ntnu-arl.github.io/aerial_gym_simulator/8_sensors_and_rendering)
+- [强化学习训练](https://ntnu-arl.github.io/aerial_gym_simulator/6_rl_training)
+- [模拟组件](https://ntnu-arl.github.io/aerial_gym_simulator/4_simulation_components)
+- [定制化](https://ntnu-arl.github.io/aerial_gym_simulator/5_customization)
+- [常见问题和故障排除](https://ntnu-arl.github.io/aerial_gym_simulator/7_FAQ_and_troubleshooting)
+
+## 联系方式
+
+Mihir Kulkarni  &nbsp;&nbsp;&nbsp; [电子邮件](mailto:mihirk284@gmail.com) &nbsp; [GitHub](https://github.com/mihirk284) &nbsp; [领英](https://www.linkedin.com/in/mihir-kulkarni-6070b6135/) &nbsp; [X（前身为Twitter）](https://twitter.com/mihirk284)
+
+Welf Rehberg &nbsp;&nbsp;&nbsp;&nbsp; [电子邮件](mailto:welf.rehberg@ntnu.no) &nbsp; [GitHub](https://github.com/Zwoelf12) &nbsp; [领英](https://www.linkedin.com/in/welfrehberg/)
+
+Theodor J. L. Forgaard &nbsp;&nbsp;&nbsp; [电子邮件](mailto:tjforgaa@stud.ntnu.no) &nbsp; [GitHub](https://github.com/tforgaard) &nbsp; [领英](https://www.linkedin.com/in/theodor-johannes-line-forgaard-665b5311a/)
+
+Kostas Alexis &nbsp;&nbsp;&nbsp;&nbsp; [电子邮件](mailto:konstantinos.alexis@ntnu.no) &nbsp;  [GitHub](https://github.com/kostas-alexis) &nbsp; 
+ [领英](https://www.linkedin.com/in/kostas-alexis-67713918/) &nbsp; [X（前身为Twitter）](https://twitter.com/arlteam)
+
+该工作在[挪威科技大学（NTNU）](https://www.ntnu.no)的[自主机器人实验室](https://www.autonomousrobotslab.com)进行。有关更多信息，请访问我们的[网站](https://www.autonomousrobotslab.com/)。
+
+## 致谢
+本材料得到了RESNAV（AFOSR奖号：FA8655-21-1-7033）和SPEAR（地平线欧洲资助协议号：101119774）的支持。
+
+本仓库利用了一些来自[https://github.com/leggedrobotics/legged_gym](https://github.com/leggedrobotics/legged_gym)和[IsaacGymEnvs](https://github.com/isaac-sim/IsaacGymEnvs)的代码和辅助脚本。
+
+## 常见问题和故障排除 
+
+请参考我们的[网站](https://ntnu-arl.github.io/aerial_gym_simulator/7_FAQ_and_troubleshooting/)或GitHub仓库中的[问题](https://github.com/ntnu-arl/aerial_gym_simulator/issues)部分以获取更多信息。
 
 ```bash
 ├── aerial_gym
@@ -121,10 +119,10 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 │   │   └── task_config                  # 任务配置文件(会调用上面的机器人、环境等配置，并加入强化学习的一些策略)
 │   ├── control
 │   │   ├── control_allocation.py        # 控制分配算法实现
-│   │   ├── controllers                  # 各种控制器的实现
+│   │   ├── controllers                  # 各种控制器的实现（主要是给仿真使用计算）
 │   │   ├── __init__.py                  # 初始化控制模块
 │   │   └── motor_model.py               # 电机模型的实现
-│   ├── env_manager
+│   ├── env_manager     # env_manager->robots->sensors
 │   │   ├── asset_loader.py              # 资产加载器
 │   │   ├── asset_manager.py             # 资产管理器
 │   │   ├── base_env_manager.py          # 基础环境管理器
@@ -165,7 +163,7 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 │   │   ├── cleanrl                      # CleanRL库实现
 │   │   ├── rl_games                     # RL Games实现
 │   │   └── sample_factory               # Sample Factory实现
-│   ├── robots
+│   ├── robots     # robots->sensors
 │   │   ├── base_multirotor.py           # 基础多旋翼机器人类
 │   │   ├── base_reconfigurable.py       # 基础可重构机器人类
 │   │   ├── base_robot.py                 # 基础机器人类
@@ -178,7 +176,7 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 │   │   ├── imu_sensor.py                # IMU传感器类
 │   │   ├── isaacgym_camera_sensor.py    # Isaac Gym摄像头传感器类
 │   │   └── warp                          # Warp相关传感器
-│   ├── sim
+│   ├── sim    # sim->env_manager->robots->sensors
 │   │   ├── __init__.py                  # 初始化仿真模块
 │   │   └── sim_builder.py               # 仿真构建器
 │   ├── sim2real
@@ -189,7 +187,7 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 │   │   ├── vae_image_encoder.py         # VAE图像编码器
 │   │   ├── vae.py                       # VAE相关实现
 │   │   └── weights                      # 权重文件
-│   ├── task
+│   ├── task    # task->sim->env_manager->robots->sensors
 │   │   ├── base_task.py                 # 基础任务类
 │   │   ├── custom_task                  # 自定义任务
 │   │   ├── __init__.py                  # 初始化任务模块
