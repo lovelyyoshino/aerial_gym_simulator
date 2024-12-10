@@ -1,59 +1,58 @@
 from aerial_gym.config.sensor_config.imu_config.base_imu_config import BaseImuConfig
 
-
+# VN100Config类继承自BaseImuConfig，用于配置VN100 IMU传感器的参数
 class VN100Config(BaseImuConfig):
-    num_sensors = 1  # number of sensors of this type. More than 1 sensor on the same link don't make sense. Can be implemented if needed for multiple different links.
+    num_sensors = 1  # 该类型传感器的数量。一个链接上不需要多个相同类型的传感器。如果需要不同链接上的多个传感器，可以实现。
 
-    sensor_type = "imu"  # sensor type
+    sensor_type = "imu"  # 传感器类型为IMU（惯性测量单元）
 
-    world_frame = False
+    world_frame = False  # 是否使用世界坐标系，默认为False
 
-    # enable or disable noise and bias. Setting to False will simulate a perfect, noise- and bias-free IMU
-    enable_noise = True
-    enable_bias = True
+    # 启用或禁用噪声和偏差。设置为False将模拟一个完美、无噪声和无偏差的IMU
+    enable_noise = True  # 启用噪声
+    enable_bias = True   # 启用偏差
 
-    # bias and noise values as obtained from a sample VN100 IMU
+    # 从样本VN100 IMU获得的偏差和噪声值
     bias_std = [
-        9.782812831313576e-07,
-        9.782812831313576e-07,
-        9.782812831313576e-07,
-        2.6541629581345176e-05,
-        2.6541629581345176e-05,
-        2.6541629581345176e-05,
-    ]  # first 3 values for acc bias std, next 3 for gyro bias std
+        9.782812831313576e-07,  # 加速度计偏差标准差X轴
+        9.782812831313576e-07,  # 加速度计偏差标准差Y轴
+        9.782812831313576e-07,  # 加速度计偏差标准差Z轴
+        2.6541629581345176e-05,  # 陀螺仪偏差标准差X轴
+        2.6541629581345176e-05,  # 陀螺仪偏差标准差Y轴
+        2.6541629581345176e-05,  # 陀螺仪偏差标准差Z轴
+    ]  
     imu_noise_std = [
-        0.001372931,
-        0.001372931,
-        0.001372931,
-        6.108652381980153e-05,
-        6.108652381980153e-05,
-        6.108652381980153e-05,
-    ]  # first 3 vaues for acc noise std, next 3 for gyro noise std
+        0.001372931,              # 加速度计噪声标准差X轴
+        0.001372931,              # 加速度计噪声标准差Y轴
+        0.001372931,              # 加速度计噪声标准差Z轴
+        6.108652381980153e-05,    # 陀螺仪噪声标准差X轴
+        6.108652381980153e-05,    # 陀螺仪噪声标准差Y轴
+        6.108652381980153e-05,    # 陀螺仪噪声标准差Z轴
+    ]  
     max_measurement_value = [
-        100.0,
-        100.0,
-        100.0,
-        10.0,
-        10.0,
-        10.0,
-    ]  # max measurement value for acc and gyro outputs will be clamped by + & - of these
+        100.0,                    # 加速度计输出最大测量值X轴
+        100.0,                    # 加速度计输出最大测量值Y轴
+        100.0,                    # 加速度计输出最大测量值Z轴
+        10.0,                     # 陀螺仪输出最大测量值X轴
+        10.0,                     # 陀螺仪输出最大测量值Y轴
+        10.0,                     # 陀螺仪输出最大测量值Z轴
+    ]  
 
     max_bias_init_value = [
-        1.0e-03,
-        1.0e-03,
-        1.0e-03,
-        1.0e-03,
-        1.0e-03,
-        1.0e-03,
-    ]  # max bias init value for acc and gyro biases will be sampled within +/- of this range
+        1.0e-03,                  # 加速度计偏差初始化最大值范围X轴
+        1.0e-03,                  # 加速度计偏差初始化最大值范围Y轴
+        1.0e-03,                  # 加速度计偏差初始化最大值范围Z轴
+        1.0e-03,                  # 陀螺仪偏差初始化最大值范围X轴
+        1.0e-03,                  # 陀螺仪偏差初始化最大值范围Y轴
+        1.0e-03,                  # 陀螺仪偏差初始化最大值范围Z轴
+    ]  
 
-    # Setting this to true will provide acceelration of the object in a static frame w.r.t ground.
+    # 设置为True时，将提供相对于地面的静态框架中的物体加速度。
+    gravity_compensation = False  # 通常力传感器计算包括重力在内的总力，因此设置为False
 
-    gravity_compensation = False  # usually the force sensor computes total force including gravity, so set this to False
+    # 此位置硬编码在资产中心。如果需要，用户可以在代码中更改此位置。
 
-    # The position of this is hardcoded at the center of the asset. This can be changed by the user in code if needed.
-
-    # Randomize the orientation of the sensor w.r.t the parent link. The position is still [0,0,0] in the parent link frame
-    randomize_placement = True
-    min_euler_rotation_deg = [-2.0, -2.0, -2.0]
-    max_euler_rotation_deg = [2.0, 2.0, 2.0]
+    # 随机化传感器相对于父链接的方向。位置仍然是[0,0,0]在父链接框架中
+    randomize_placement = True  # 启用随机放置
+    min_euler_rotation_deg = [-2.0, -2.0, -2.0]  # 最小欧拉角旋转（度）
+    max_euler_rotation_deg = [2.0, 2.0, 2.0]      # 最大欧拉角旋转（度）
