@@ -118,7 +118,7 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 │   │   ├── robot_config                 # 机器人配置文件，会调用sensor_config这个传感器配置
 │   │   ├── sensor_config                # 传感器配置文件（包括相机、IMU、雷达的传感器）
 │   │   ├── sim_config                   # 仿真配置文件
-│   │   └── task_config                  # 任务配置文件
+│   │   └── task_config                  # 任务配置文件(会调用上面的机器人、环境等配置，并加入强化学习的一些策略)
 │   ├── control
 │   │   ├── control_allocation.py        # 控制分配算法实现
 │   │   ├── controllers                  # 各种控制器的实现
