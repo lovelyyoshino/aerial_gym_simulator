@@ -1,146 +1,134 @@
-## Robots
+## 机器人
 
-### Underactuated Quadrotor
+### 欠驱动四旋翼
 
-We provide a classic planar quadrotor design as the default choice for the robot platform in our simulation. The robot model is deliberately kept simplistic (in terms of structure, texture etc) to allow for faster simulation speeds. The robot mass and inertia parameters can be set by modifying the URDF of the robot. Moreover, the controller parameters can be tuned to match the response of your real-world platform.
+我们提供了一个经典的平面四旋翼设计，作为我们仿真中机器人平台的默认选择。为了加快仿真速度，机器人模型在结构、纹理等方面故意保持简洁。机器人质量和惯性参数可以通过修改机器人的URDF文件进行设置。此外，控制器参数可以进行调节，以匹配您实际平台的响应。
 
+![默认四旋翼平台](./gifs/regular_quadrotor.gif)
 
-![Default quadrotor platforms](./gifs/regular_quadrotor.gif)
+### 完全驱动八旋翼
 
+我们还提供了一个完全驱动的八旋翼平台，基于Dario Brescianini和Raffaello D’Andrea的研究[《全向空中飞行器的设计、建模与控制》](https://idsc.ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/People/bdario/brescianini_dandrea_omnidirectional_aerial_vehicle.pdf)。
 
-### Fully-acutated Octarotor
+![完全驱动八旋翼平台](./gifs/fully_actuated_octarotor.gif)
 
-We also provide a fully actuated octarotor platform based on the work in [Design, Modeling and Control of an Omni-Directional Aerial Vehicle](https://idsc.ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/People/bdario/brescianini_dandrea_omnidirectional_aerial_vehicle.pdf) by Dario Brescianini and Raffaello D’Andrea.
+### 任意配置
 
-![Fully-actuated Octarotor Platform](./gifs/fully_actuated_octarotor.gif)
+为了展示如何操作任意平台设计，我们还提供了一个具有非常规配置的多旋翼平台的URDF。
 
-### Arbitrary Configuration
+![任意八旋翼平台](./gifs/random_octarotor_learned.gif)
 
-To show how to operate with arbitrary platform designs, we also provide a URDF of a multirotor platform with an unconventional configuration.
+上述GIF展示了使用电机控制策略训练的任意平台，以达到目标位置。
 
-![Arbitrary Octarotor Platform](./gifs/random_octarotor_learned.gif)
+!!! 警告 "使用提供的几何控制器进行此配置"
+    将表现出次优性能，因为它们假设该配置的质心位于机器人的根链接处。为了考虑由于质心偏移而施加在根链接上的扭矩，需要在控制器中添加额外的项。鼓励用户为其任意配置自行提供这些修改。控制器将有效，但不会利用平台在其他运动维度上的可控性。这目前是一个活跃的研究领域，鼓励用户探索基于学习的解决方案。
 
-The above GIF shows the arbitrary platform trained using a motor-control policy to reach a goal position. 
+!!! 警告 "此配置的控制分配"
+    是在假设无约束电机命令分配的情况下推导的，然后对动作进行限制。这是处理任意配置时的一个普遍问题，也是一个活跃的研究领域。鼓励用户探索此类平台的基于学习的解决方案。提供的配置的分配矩阵是相对于机器人的根链接计算的。
 
-!!! warning "Using provided geometric controllers for this configuration"
-    will perform suboptimally as they assume that the center of mass for this configuration is at the root link of the robot. To account for the torque exerted about the root link because of an offset center-of-mass, additional terms will be required to be added to the controller. Users are encouraged to provide these modifications themselves for their arbitrary configurations. The controllers will work but will not exploit the controllability of the platform along other dimensions of motion. It is currently an area of active research and users are encouraged to explore learning-based solutions as well.
+## 控制器
 
+### 并行几何控制器
 
-!!! warning "Control allocation for this configuration"
-    is derived assuming unconstrained motor command allocation and then clamping the actions. This is a general problem when dealing with arbitrary configurations and is an area of active research. Users are encouraged to explore learning-based solutions for such platforms. The allocation matrix for the provided configurations are calculated w.r.t the root link of the robot.
+我们为欠驱动平面平台（如四旋翼、六旋翼和八旋翼）调整并打包控制器。这些控制器基于Taeyoung Lee、Melvin Leok和N. Harris McClamroch的研究[《使用几何方法在SE(3)上控制四旋翼无人机的复杂机动》](https://arxiv.org/abs/1003.2005)。我们调整控制器，以便在GPU上实现高效的并行化，以同时控制数千个多旋翼飞行器。控制器在PyTorch中实现，并使用PyTorch JIT编译器进行预编译，以提高速度。控制器设计为模块化，可以轻松扩展到其他平台。我们提供了使用此控制器与完全驱动的八旋翼平台和平面四旋翼平台的示例。
 
+??? 警告 "在完全驱动平台上使用并行几何控制器"
+    注定会产生次优结果，因为这些控制器是为四旋翼类平台设计的，这些平台的所有电机轴彼此平行。控制器将在完全驱动的平台上工作，但不会利用平台在其他运动维度上的可控性。这目前是一个活跃的研究领域，鼓励用户探索基于学习的解决方案。
 
-## Controllers
+#### 姿态-推力和机体速率-推力控制器
 
-### Parallelized Geometric Controllers
-
-
-We adapt and package controllers for underactuated planar platforms such as quadrotor, hexarotor, and octarotor. The controllers are based on the work in [Control of Complex Maneuvers for a Quadrotor UAV using Geometric Methods on SE(3)](https://arxiv.org/abs/1003.2005) by Taeyoung Lee, Melvin Leok, and N. Harris McClamroch.  We adapt the controllers to provide efficient parallelization on the GPU for the simultaneous control of thousands of multirotor vehicles. The controllers are implemented in PyTorch and pre-compiled using the PyTorch JIT compiler for added speedup. The controllers are designed to be modular and can be easily extended to other platforms. We provide examples of use of this controller with a fully actuated octarotor platform and a planar quadrotor platform.
-
-??? warning "Use of parallelized geometric controllers with fully actuated platforms"
-    is bound to produce sub-optimal results as the controllers are designed for quadrotor-like platforms that have all the axes of the motors parallel to each other. The controllers will work on fully actuated platforms but will not exploit the controllability of the platform along other dimensions of motion. It is currently an area of active research and users are encouraged to explore learning-based solutions as well.
-
-
-#### Attitude-Thrust and Body-rate-Thrust Controllers
-
-The errors in desired orientation $e_R$ and body rates $e_{\Omega}$ are computed as:
+期望的姿态误差 $e_R$ 和机体速率误差 $e_{\Omega}$ 计算如下：
 
 $$ e_R = \frac{1}{2}  (R_d^T  R - R^T  R_d)^{\vee}, $$
 
-and
+和
 
 $$ e_{\Omega} = \Omega - R^T  R_d  \Omega_d .$$
 
-The desired body-moment $M$ is computed as:
+期望的机体力矩 $M$ 计算为：
 
 $$ M = -k_R e_R - k_{\Omega} e_{\Omega} + \Omega \times J \Omega, $$
 
-where we set the desired angular velocity $\Omega_d = 0$ in case of attitude control and $R_d = R$ in case of body-rate control. The thrust command is directly provided as a control input to the controller.
+其中在姿态控制的情况下我们设定期望的角速度 $\Omega_d = 0$，在机体速率控制的情况下设定 $R_d = R$。推力命令直接作为控制输入提供给控制器。
 
+#### 位置、速度和加速度控制器
 
-#### Position, Velocity and Acceleration Controllers
-
-
-Given the above attitude controllers, we first calculate the desired body force $f$ and the desired orientation $R_d$ using the following equations:
+在上述姿态控制器的基础上，我们首先使用以下方程计算期望的机体力 $f$ 和期望的姿态 $R_d$：
 
 $$ f = -k_x e_x - k_v e_v - m g e_3 + m \ddot{x}_d, $$
 
-and
+和
 
 $$ M = -k_R e_R - k_{\Omega} e_{\Omega} + \Omega \times J \Omega_c, $$
 
-where $e_R = \frac{1}{2} (R_c^T R - R^T R_c)^{\vee}$, and $e_{\Omega_c} = \Omega - R^T R_c \Omega_c$. To calculate the matrix $R_c$, we use:
+其中 $e_R = \frac{1}{2} (R_c^T R - R^T R_c)^{\vee}$，$e_{\Omega_c} = \Omega - R^T R_c \Omega_c$。为了计算矩阵 $R_c$，我们使用：
 
 $$ R_c = [ b_{1_c}; b_{3_c}\times b_{1_c}; b_{3_c} ], $$
 
-where, $b_{3_c} = - \frac{-k_x e_x - k_v e_v - m g e_3 + m \ddot{x}_d}{ || -k_x e_x - k_v e_v - m g e_3 + m \ddot{x}_d || }$, and $b_{1_c}$ is a vector orthogonal to $b_{3_c}$.
+其中 $b_{3_c} = - \frac{-k_x e_x - k_v e_v - m g e_3 + m \ddot{x}_d}{ || -k_x e_x - k_v e_v - m g e_3 + m \ddot{x}_d || }$，而 $b_{1_c}$ 是一个与 $b_{3_c}$ 正交的向量。
 
+对于速度控制的情况，我们设定位置误差 $e_x = 0$ 和期望加速度 $\ddot{x}_d = 0$；对于加速度控制的情况，我们设定位置误差和期望速度 $\dot{x}_d = 0$。
 
-For the case of velocity control, we set the position error $e_x = 0$ and the desired acceleration $\ddot{x}_d = 0$, for the case of acceleration control, we set the position error and the desired velocity $\dot{x}_d = 0$.
+同样，对于速度转向角控制器，我们结合上述概念，允许提供与速度设定点一起的偏航设定点。
 
-Similarly, for the velocity-steering angle-controller, we combine the above concepts to allow a yaw-setpoint to be provided along with the velocity setpoint.
+## 电机命令分配和推力映射
 
+我们提供支持，通过控制分配矩阵分配电机力。分配矩阵是根据机器人的几何形状获得的，并需要在配置文件中明确定义。分配矩阵允许根据基链接的扭矩（力和扭矩）命令分配电机力。
 
-## Motor Command Allocation and Thrust Mapping
+??? 信息 "每个机器人的分配矩阵可以在机器人配置文件中定义。"
+    以下是完全驱动的八旋翼配置文件中的示例：
 
-We provide support to allocate motor forces using the control allocation matrix. The allocation matrix is obtained from the geometry of the robot and needs to be explicitly defined in the configuration file. The allocation matrix allows for assigning motor forces given wrench (force and torque) commands for the base link.
+```python
+allocation_matrix = [
+    [-0.78867513, 0.21132487, -0.21132487, 0.78867513, 0.78867513, -0.21132487, 0.21132487, -0.78867513,],
+    [0.21132487, 0.78867513, -0.78867513, -0.21132487, -0.21132487, -0.78867513, 0.78867513, 0.21132487,],
+    [0.57735027, -0.57735027, -0.57735027, 0.57735027, 0.57735027, -0.57735027, -0.57735027, 0.57735027,],
+    [-0.01547005, -0.25773503, 0.21547005, -0.14226497, 0.14226497, -0.21547005, 0.25773503, 0.01547005,],
+    [-0.21547005, -0.14226497, -0.01547005, 0.25773503, -0.25773503, 0.01547005, 0.14226497, 0.21547005,],
+    [0.23094011, -0.11547005, -0.23094011, 0.11547005, -0.11547005, 0.23094011, 0.11547005, -0.23094011,],
+]
+```
 
-??? info "The allocation matrix for each robot can be defined in the robot configuration file."
-    Below is the example from the fully-actuated octarotor configuration file:
-    ```python
-    allocation_matrix = [
-        [-0.78867513, 0.21132487, -0.21132487, 0.78867513, 0.78867513, -0.21132487, 0.21132487, -0.78867513,],
-        [0.21132487, 0.78867513, -0.78867513, -0.21132487, -0.21132487, -0.78867513, 0.78867513, 0.21132487,],
-        [0.57735027, -0.57735027, -0.57735027, 0.57735027, 0.57735027, -0.57735027, -0.57735027, 0.57735027,],
-        [-0.01547005, -0.25773503, 0.21547005, -0.14226497, 0.14226497, -0.21547005, 0.25773503, 0.01547005,],
-        [-0.21547005, -0.14226497, -0.01547005, 0.25773503, -0.25773503, 0.01547005, 0.14226497, 0.21547005,],
-        [0.23094011, -0.11547005, -0.23094011, 0.11547005, -0.11547005, 0.23094011, 0.11547005, -0.23094011,],
-    ]
-    ```
+您可以在[这篇博客文章](https://www.cantorsparadise.com/how-control-allocation-for-multirotor-systems-works-f87aff1794a2)中了解更多关于此概念的应用。
 
-You can read more about how this concept is applied [in this blog post](https://www.cantorsparadise.com/how-control-allocation-for-multirotor-systems-works-f87aff1794a2).
-
-Given an allocation matrix and the motor commands, we can calculate the wrench (force and torque) commands for the base link as 
+给定分配矩阵和电机命令，我们可以计算基链接的扭矩（力和扭矩）命令为：
 
 $$ \begin{bmatrix} f_x \\ f_y \\ f_z \\ M_x \\ M_y \\ M_z \end{bmatrix} = A_{6 \times n}  \begin{bmatrix} u_1 \\ u_2 \\ u_3 \\ ... \\ u_n \end{bmatrix}, $$
 
-where $f$ is the force, and $M$ is the moment for the base link, $A$ is the allocation matrix, and $u_i$ represents the motor force for the motor $i$. We use the pseudo-inverse of the allocation matrix to obtain motor commands:
+其中 $f$ 是力，$M$ 是基链接的力矩，$A$ 是分配矩阵，$u_i$ 表示电机 $i$ 的电机力。我们使用分配矩阵的伪逆来获得电机命令：
 
 $$ \begin{bmatrix} u_1 \\ u_2 \\ u_3 \\ ... \\ u_n \end{bmatrix} = A^+  \begin{bmatrix} f_x \\ f_y \\ f_z \\ M_x \\ M_y \\ M_z \end{bmatrix}_{desired}, $$
 
-where $A^+$ is the pseudo-inverse of the allocation matrix.
+其中 $A^+$ 是分配矩阵的伪逆。
 
-!!! warning "While this works in the case of platforms such as the quadrotor or fully-actuated octarotor, it may or may not work for arbitrary configurations or it may not produce efficient flight. Users are encouraged to explore learning-based solutions for such platforms."
+!!! 警告 "虽然在四旋翼或完全驱动的八旋翼等平台的情况下有效，但对于任意配置可能有效也可能无效，或者可能无法产生高效的飞行。鼓励用户探索此类平台的基于学习的解决方案。"
 
+## 电机模型
 
-## Motor Model
-
-We model the simulated motors as a first-order system with randomizable time-constants. The thrust commands can be clamped to minimum and maximum values and are updated at each time-step based on the reference thrust values from the controller, following the equation:
+我们将模拟电机建模为具有可随机化时间常数的一阶系统。推力命令可以限制在最小和最大值之间，并根据控制器的参考推力值在每个时间步更新，遵循以下方程：
 
 $$ \dot{f_i} = \frac{1}{\tau_i} (f_{ref_i} - f_i), $$
 
-where $f_i$ is the current thrust value for motor $i$, $f_{ref_i}$ is the reference thrust value from the controller, and $\tau_i$ is the time-constant of the motor. The thrust rate is clamped to a maximum value to prevent the motors from saturating. Users are encouraged to match this model to their specific robot platform for accurate simulation results.
+其中 $f_i$ 是电机 $i$ 的当前推力值，$f_{ref_i}$ 是来自控制器的参考推力值，$\tau_i$ 是电机的时间常数。推力速率被限制在最大值，以防止电机饱和。鼓励用户将此模型与其特定的机器人平台匹配，以获得准确的仿真结果。
 
-!!! example "First order motor model"
-    ```python
-    def update_motor_thrusts(self, ref_thrust):
-        ref_thrust = torch.clamp(ref_thrust, self.min_thrust, self.max_thrust)
-        self.motor_thrust_rate[:] = (1.0 / self.motor_time_constants) * (ref_thrust - self.current_motor_thrust)
-        self.motor_thrust_rate[:] = torch.clamp(self.motor_thrust_rate, -self.cfg.max_thrust_rate, self.cfg.max_thrust_rate)
-        self.current_motor_thrust[:] = (self.current_motor_thrust + self.dt * self.motor_thrust_rate)
-        return self.current_motor_thrust
+!!! 示例 "一阶电机模型"
+```python
+def update_motor_thrusts(self, ref_thrust):
+    ref_thrust = torch.clamp(ref_thrust, self.min_thrust, self.max_thrust)
+    self.motor_thrust_rate[:] = (1.0 / self.motor_time_constants) * (ref_thrust - self.current_motor_thrust)
+    self.motor_thrust_rate[:] = torch.clamp(self.motor_thrust_rate, -self.cfg.max_thrust_rate, self.cfg.max_thrust_rate)
+    self.current_motor_thrust[:] = (self.current_motor_thrust + self.dt * self.motor_thrust_rate)
+    return self.current_motor_thrust
+```
 
-    ```
+## 阻力模型
 
-
-## Drag Model
-
-A simplistic model for drag is implemented that that can be customized to the user's needs. Linear and quadratic drag coefficients for drag induced by velocity and angular velocity can be set in the configuration file. The drag force $F_{drag}$ and torque $M_{drag}$ in the body-frame are calculated as:
+实现了一个简单的阻力模型，可以根据用户的需求进行定制。可以在配置文件中设置由速度和角速度引起的线性和二次阻力系数。体框架中的阻力 $F_{drag}$ 和扭矩 $M_{drag}$ 计算如下：
 
 $$ F_{drag} = -k_{v_{linear}} v -k_{v_{quadratic}} v |v|, $$
 
-and 
+和 
 
 $$ M_{drag} = -k_{\omega_{linear}} \omega -k_{\omega_{quadratic}} \omega |\omega|, $$
 
-where $v$ is the linear velocity, $\omega$ is the angular velocity expressed in the body frame, and $k$ are the drag coefficients. The drag model can be customized to the user's needs by changing the robot-specific parameters in the configuration file.
+其中 $v$ 是线速度，$\omega$ 是在体框架中表示的角速度，$k$ 是阻力系数。通过在配置文件中更改特定于机器人的参数，可以根据用户的需求定制阻力模型。

@@ -14,6 +14,7 @@ logger = CustomLogger("position_setpoint_task")
 
 
 def dict_to_class(dict):
+    # 将字典转换为类
     return type("ClassFromDict", (object,), dict)
 
 
@@ -21,7 +22,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
     def __init__(
         self, task_config, seed=None, num_envs=None, headless=None, device=None, use_warp=None
     ):
-        # overwrite the params if user has provided them
+        # 如果用户提供了参数，则覆盖默认参数
         if seed is not None:
             task_config.seed = seed
         if num_envs is not None:
@@ -35,11 +36,13 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
 
         super().__init__(task_config)
         self.device = self.task_config.device
-        # set the each of the elements of reward parameter to a torch tensor
+        
+        # 将奖励参数的每个元素设置为torch张量
         for key in self.task_config.reward_parameters.keys():
             self.task_config.reward_parameters[key] = torch.tensor(
                 self.task_config.reward_parameters[key], device=self.device
             )
+        
         logger.info("Building environment for position setpoint task.")
         logger.info(
             "\nSim Name: {},\nEnv Name: {},\nRobot Name: {}, \nController Name: {}".format(
@@ -57,6 +60,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
             )
         )
 
+        # 构建仿真环境
         self.sim_env = SimBuilder().build_env(
             sim_name=self.task_config.sim_name,
             env_name=self.task_config.env_name,
@@ -69,6 +73,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
             headless=self.task_config.headless,
         )
 
+        # 初始化动作和状态变量
         self.actions = torch.zeros(
             (self.sim_env.num_envs, self.task_config.action_space_dim),
             device=self.device,
@@ -86,16 +91,14 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
             (self.sim_env.num_envs, 3), device=self.device, requires_grad=False
         )
 
-        # self.action_file = open("actions.txt", "w")
-
-        # Get the dictionary once from the environment and use it to get the observations later.
-        # This is to avoid constant retuning of data back anf forth across functions as the tensors update and can be read in-place.
+        # 从环境中获取观察值字典，以便后续使用
         self.obs_dict = self.sim_env.get_obs()
         self.obs_dict["num_obstacles_in_env"] = 1
         self.terminations = self.obs_dict["crashes"]
         self.truncations = self.obs_dict["truncations"]
         self.rewards = torch.zeros(self.truncations.shape[0], device=self.device)
 
+        # 定义观察空间和动作空间
         self.observation_space = Dict(
             {"observations": Box(low=-1.0, high=1.0, shape=(13,), dtype=np.float32)}
         )
@@ -105,15 +108,10 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
             shape=(self.task_config.action_space_dim,),
             dtype=np.float32,
         )
-        # self.action_transformation_function = self.sim_env.robot_manager.robot.action_transformation_function
 
         self.num_envs = self.sim_env.num_envs
 
-        self.counter = 0
-
-        # Currently only the "observations" are sent to the actor and critic.
-        # The "priviliged_obs" are not handled so far in sample-factory
-
+        # 当前只将“observations”发送给actor和critic。
         self.task_obs = {
             "observations": torch.zeros(
                 (self.sim_env.num_envs, self.task_config.observation_space_dim),
@@ -137,26 +135,31 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
         }
 
     def close(self):
+        # 删除仿真环境
         self.sim_env.delete_env()
 
     def reset(self):
-        self.target_position[:, 0:3] = 0.0  # torch.rand_like(self.target_position) * 10.0
+        # 重置目标位置和环境信息
+        self.target_position[:, 0:3] = 0.0  
         self.infos = {}
         self.sim_env.reset()
         return self.get_return_tuple()
 
     def reset_idx(self, env_ids):
+        # 根据环境ID重置特定环境
         self.target_position[:, 0:3] = (
-            0.0  # (torch.rand_like(self.target_position[env_ids]) * 10.0)
+            0.0 
         )
         self.infos = {}
         self.sim_env.reset_idx(env_ids)
         return
 
     def render(self):
+        # 渲染函数，当前未实现
         return None
 
     def step(self, actions):
+        # 执行一步操作
         self.counter += 1
         self.prev_actions[:] = self.actions
         self.prev_actions_vehicle_frame[:, 0:3] = quat_rotate(
@@ -168,19 +171,11 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
         )
         self.actions = actions
         self.actions[:, 0:3] = 2.0 * self.actions[:, 0:3]
-        # self.action_file.write(f"{self.actions[0].cpu().numpy()[0]}, {self.actions[0].cpu().numpy()[1]}, {self.actions[0].cpu().numpy()[2]}, {self.actions[0].cpu().numpy()[3]},\n")
-        # print(self.actions[0].cpu().numpy())
 
-        # this uses the action, gets observations
-        # calculates rewards, returns tuples
-        # In this case, the episodes that are terminated need to be
-        # first reset, and the first obseration of the new episode
-        # needs to be returned.
+        # 使用动作更新环境状态并计算奖励
         self.sim_env.step(actions=self.actions)
 
-        # This step must be done since the reset is done after the reward is calculated.
-        # This enables the robot to send back an updated state, and an updated observation to the RL agent after the reset.
-        # This is important for the RL agent to get the correct state after the reset.
+        # 更新奖励和终止条件
         self.rewards[:], self.terminations[:] = self.compute_rewards_and_crashes(self.obs_dict)
 
         if self.task_config.return_state_before_reset == True:
@@ -191,7 +186,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
         )
         self.sim_env.post_reward_calculation_step()
 
-        self.infos = {}  # self.obs_dict["infos"]
+        self.infos = {}  
 
         if self.task_config.return_state_before_reset == False:
             return_tuple = self.get_return_tuple()
@@ -199,6 +194,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
         return return_tuple
 
     def get_return_tuple(self):
+        # 获取返回元组，包括任务观察、奖励、终止、截断和额外信息
         self.process_obs_for_task()
         return (
             self.task_obs,
@@ -209,6 +205,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
         )
 
     def process_obs_for_task(self):
+        # 处理任务观察数据
         position_error = self.target_position - self.obs_dict["robot_position"]
         self.obs_dict["robot_orientation"][:] = (
             torch.sign(self.obs_dict["robot_orientation"][:, 3]).unsqueeze(1)
@@ -237,6 +234,7 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
         self.task_obs["truncations"] = self.truncations
 
     def compute_rewards_and_crashes(self, obs_dict):
+        # 计算奖励和碰撞情况
         robot_position = obs_dict["robot_position"]
         robot_body_linvel = obs_dict["robot_body_linvel"]
         target_position = self.target_position
@@ -275,25 +273,29 @@ class PositionSetpointTaskAccelerationSim2Real(BaseTask):
 
 @torch.jit.script
 def exp_func(x, gain, exp):
-    # type: (Tensor, float, float) -> Tensor
+    # 指数函数，用于计算奖励
+    # 类型: (Tensor, float, float) -> Tensor
     return gain * torch.exp(-exp * x * x)
 
 
 @torch.jit.script
 def abs_exp_func(x, gain, exp):
-    # type: (Tensor, float, float) -> Tensor
+    # 绝对值指数函数，用于计算奖励
+    # 类型: (Tensor, float, float) -> Tensor
     return gain * torch.exp(-exp * torch.abs(x))
 
 
 @torch.jit.script
 def exp_penalty_func(x, gain, exp):
-    # type: (Tensor, float, float) -> Tensor
+    # 指数惩罚函数
+    # 类型: (Tensor, float, float) -> Tensor
     return gain * (torch.exp(-exp * x * x) - 1)
 
 
 @torch.jit.script
 def abs_exp_penalty_func(x, gain, exp):
-    # type: (Tensor, float, float) -> Tensor
+    # 绝对值指数惩罚函数
+    # 类型: (Tensor, float, float) -> Tensor
     return gain * (torch.exp(-exp * torch.abs(x)) - 1)
 
 
@@ -310,7 +312,8 @@ def compute_reward(
     prev_actions,
     parameter_dict,
 ):
-    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor, Tensor, Dict[str, Tensor]) -> Tuple[Tensor, Tensor]
+    # 计算总奖励
+    # 类型: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor, Tensor, Dict[str, Tensor]) -> Tuple[Tensor, Tensor]
 
     dist = torch.norm(pos_error, dim=1)
 

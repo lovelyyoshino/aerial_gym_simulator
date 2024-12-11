@@ -16,6 +16,7 @@ logger = CustomLogger("position_setpoint_task")
 
 
 def dict_to_class(dict):
+    # 将字典转换为类
     return type("ClassFromDict", (object,), dict)
 
 
@@ -23,6 +24,7 @@ class PositionSetpointTaskMorphy(PositionSetpointTaskReconfigurable):
     def __init__(
         self, task_config, seed=None, num_envs=None, headless=None, device=None, use_warp=None
     ):
+        # 初始化任务，设置机器人目标位置和速度为零
         super().__init__(
             task_config=task_config,
             seed=seed,
@@ -40,29 +42,23 @@ class PositionSetpointTaskMorphy(PositionSetpointTaskReconfigurable):
             )
 
     def step(self, actions):
+        # 执行一步操作，更新状态、奖励和终止条件
         self.counter += 1
         self.prev_actions[:] = self.actions
         self.actions = self.task_config.process_actions_for_task(
             actions, self.action_limit_min, self.action_limit_max
         )
 
-        # this uses the action, gets observations
-        # calculates rewards, returns tuples
-        # In this case, the episodes that are terminated need to be
-        # first reset, and the first obseration of the new episode
-        # needs to be returned.
-
-        # set action before stepping
+        # 在执行步骤之前设置动作
         self.sim_env.step(actions=self.actions[:, : self.task_config.num_motors])
 
-        # This step must be done since the reset is done after the reward is calculated.
-        # This enables the robot to send back an updated state, and an updated observation to the RL agent after the reset.
-        # This is important for the RL agent to get the correct state after the reset.
+        # 更新奖励和终止信息
         self.rewards[:], self.terminations[:] = self.compute_rewards_and_crashes(self.obs_dict)
 
         if self.task_config.return_state_before_reset == True:
             return_tuple = self.get_return_tuple()
 
+        # 检查是否超出最大步数限制
         self.truncations[:] = torch.where(
             self.sim_env.sim_steps > self.task_config.episode_len_steps, 1, 0
         )
@@ -76,6 +72,7 @@ class PositionSetpointTaskMorphy(PositionSetpointTaskReconfigurable):
         return return_tuple
 
     def process_obs_for_task(self):
+        # 处理观察数据并填充到任务观察中
         self.task_obs["observations"][:, 0:3] = (
             self.target_position - self.obs_dict["robot_position"]
         )
@@ -92,7 +89,7 @@ class PositionSetpointTaskMorphy(PositionSetpointTaskReconfigurable):
                 :, index + self.task_config.num_joints : index + self.task_config.num_joints * 2
             ] = self.obs_dict["dof_state_tensor"][..., 1].reshape(-1, self.task_config.num_joints)
 
-        # print NAN value locations in the observation tensor
+        # 打印观察张量中的NAN值位置
         if torch.isnan(self.task_obs["observations"]).any():
             logger.info(
                 "NAN values in the observation tensor: ",
@@ -104,6 +101,7 @@ class PositionSetpointTaskMorphy(PositionSetpointTaskReconfigurable):
         self.task_obs["truncations"] = self.truncations
 
     def compute_rewards_and_crashes(self, obs_dict):
+        # 计算奖励和碰撞情况
         robot_position = obs_dict["robot_position"]
         target_position = self.target_position
         robot_vehicle_orientation = obs_dict["robot_vehicle_orientation"]
@@ -137,12 +135,14 @@ class PositionSetpointTaskMorphy(PositionSetpointTaskReconfigurable):
 
 @torch.jit.script
 def exp_func(x, gain, exp):
+    # 指数函数，用于计算奖励
     # type: (Tensor, float, float) -> Tensor
     return gain * torch.exp(-exp * x * x)
 
 
 @torch.jit.script
 def exp_penalty_func(x, gain, exp):
+    # 指数惩罚函数，用于计算动作差异的惩罚
     # type: (Tensor, float, float) -> Tensor
     return gain * (torch.exp(-exp * x * x) - 1)
 
@@ -160,28 +160,29 @@ def compute_reward(
     prev_actions,
     parameter_dict,
 ):
+    # 计算总奖励
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor, Tensor, Dict[str, Tensor]) -> Tuple[Tensor, Tensor]
 
-    dist = torch.norm(pos_error, dim=1)
-    pos_reward = exp_func(dist, 4.0, 12.0) + exp_func(dist, 0.5, 2.0)
-    dist_reward = (20 - dist) / 40.0  # 40
+    dist = torch.norm(pos_error, dim=1)  # 计算位置误差的范数
+    pos_reward = exp_func(dist, 4.0, 12.0) + exp_func(dist, 0.5, 2.0)  # 基于距离的奖励
+    dist_reward = (20 - dist) / 40.0  # 距离奖励归一化
 
-    ups = quat_axis(robot_quats, 2)
-    tiltage = torch.abs(1 - ups[..., 2])
-    roll, pitch, yaw = get_euler_xyz(robot_quats)
-    roll = ssa(roll)
-    pitch = ssa(pitch)
-    up_reward = exp_func(tiltage, 5.0, 25.0)
+    ups = quat_axis(robot_quats, 2)  # 获取机器人的上方向
+    tiltage = torch.abs(1 - ups[..., 2])  # 计算倾斜度
+    roll, pitch, yaw = get_euler_xyz(robot_quats)  # 获取欧拉角
+    roll = ssa(roll)  # 限制滚转角
+    pitch = ssa(pitch)  # 限制俯仰角
+    up_reward = exp_func(tiltage, 5.0, 25.0)  # 倾斜度奖励
 
-    spinnage = torch.norm(robot_angvels, dim=1)
-    ang_vel_reward = exp_func(spinnage, 3.0, 10.5)
+    spinnage = torch.norm(robot_angvels, dim=1)  # 计算角速度
+    ang_vel_reward = exp_func(spinnage, 3.0, 10.5)  # 角速度奖励
 
-    action_difference = prev_actions - current_action
+    action_difference = prev_actions - current_action  # 当前动作与前一个动作的差异
 
-    absolute_action_reward = -0.15 * torch.sum((current_action[:, :4] - 0.711225) ** 2, dim=1)
-    action_difference_reward = torch.sum(exp_penalty_func(action_difference, 0.3, 10.0), dim=1)
+    absolute_action_reward = -0.15 * torch.sum((current_action[:, :4] - 0.711225) ** 2, dim=1)  # 动作绝对值奖励
+    action_difference_reward = torch.sum(exp_penalty_func(action_difference, 0.3, 10.0), dim=1)  # 动作差异惩罚
 
-    joint_vel_reward = torch.sum(exp_penalty_func(joint_vels, 0.30, 30.0), dim=1)
+    joint_vel_reward = torch.sum(exp_penalty_func(joint_vels, 0.30, 30.0), dim=1)  # 关节速度惩罚
 
     total_reward = (
         (pos_reward + dist_reward + pos_reward * (up_reward + ang_vel_reward))
@@ -189,13 +190,14 @@ def compute_reward(
         + action_difference_reward * pos_reward
         + absolute_action_reward
         + joint_vel_reward
-    )  # + previous_action_penalty + absolute_action_penalty
-    total_reward[:] = curriculum_level_multiplier * total_reward
+    )  # 总奖励计算
+    total_reward[:] = curriculum_level_multiplier * total_reward  # 根据课程级别调整奖励
 
+    # 碰撞检测
     crashes[:] = torch.where(dist > 3.0, torch.ones_like(crashes), crashes)
     crashes[:] = torch.where(torch.abs(roll) > 1.0, torch.ones_like(crashes), crashes)
     crashes[:] = torch.where(torch.abs(pitch) > 1.0, torch.ones_like(crashes), crashes)
 
-    total_reward[:] = torch.where(crashes > 0.0, -20 * torch.ones_like(total_reward), total_reward)
+    total_reward[:] = torch.where(crashes > 0.0, -20 * torch.ones_like(total_reward), total_reward)  # 如果发生碰撞，则给予负奖励
 
-    return total_reward, crashes
+    return total_reward, crashes  # 返回总奖励和碰撞信息
