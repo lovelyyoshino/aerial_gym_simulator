@@ -19,108 +19,48 @@ from PIL import Image
 
 
 def sample_command(args):
-    use_warp = True
-    headless = args.headless
-    # seg_frames = []
-    # depth_frames = []
-    # merged_image_frames = []
+    use_warp = True  # 是否使用warp技术
+    headless = args.headless  # 是否以无头模式运行（不显示图形界面）
 
     rl_task = task_registry.make_task(
         "dce_navigation_task", seed=42, use_warp=use_warp, headless=headless
-    )
-    print("Number of environments", rl_task.num_envs)
-    command_actions = torch.zeros((rl_task.num_envs, rl_task.task_config.action_space_dim))
-    command_actions[:, 0] = 1.5
-    command_actions[:, 1] = 0.0
-    command_actions[:, 2] = 0.0
-    nn_model = get_network(rl_task.num_envs)
-    nn_model.eval()
-    nn_model.reset(torch.arange(rl_task.num_envs))
-    rl_task.reset()
-    for i in range(0, 50000):
-        start_time = time.time()
-        obs, rewards, termination, truncation, infos = rl_task.step(command_actions)
+    )  # 创建导航任务实例
+    print("Number of environments", rl_task.num_envs)  # 打印环境数量
+    command_actions = torch.zeros((rl_task.num_envs, rl_task.task_config.action_space_dim))  # 初始化命令动作
+    command_actions[:, 0] = 1.5  # 设置第一个动作维度的初始值
+    command_actions[:, 1] = 0.0  # 设置第二个动作维度的初始值
+    command_actions[:, 2] = 0.0  # 设置第三个动作维度的初始值
+    nn_model = get_network(rl_task.num_envs)  # 获取神经网络模型
+    nn_model.eval()  # 将模型设置为评估模式
+    nn_model.reset(torch.arange(rl_task.num_envs))  # 重置神经网络状态
+    rl_task.reset()  # 重置任务环境
+    for i in range(0, 50000):  # 主循环，最多执行50000次
+        start_time = time.time()  # 记录开始时间
+        obs, rewards, termination, truncation, infos = rl_task.step(command_actions)  # 执行一步操作并获取观察结果、奖励等信息
 
-        obs["obs"] = obs["observations"]
-        # print(obs["observations"].shape)
-        action = nn_model.get_action(obs)
-        # print("Action", action, action.shape)
-        action = torch.tensor(action).expand(rl_task.num_envs, -1)
-        command_actions[:] = action
+        obs["obs"] = obs["observations"]  # 更新观察字典中的观测数据
+        action = nn_model.get_action(obs)  # 从神经网络中获取下一个动作
+        action = torch.tensor(action).expand(rl_task.num_envs, -1)  # 扩展动作张量以匹配环境数量
+        command_actions[:] = action  # 更新命令动作
 
-        reset_ids = (termination + truncation).nonzero(as_tuple=True)
-        if torch.any(termination):
-            terminated_envs = termination.nonzero(as_tuple=True)
-            print(f"Resetting environments {terminated_envs} due to Termination")
-        if torch.any(truncation):
-            truncated_envs = truncation.nonzero(as_tuple=True)
-            print(f"Resetting environments {truncated_envs} due to Timeout")
-        nn_model.reset(reset_ids)
+        reset_ids = (termination + truncation).nonzero(as_tuple=True)  # 找到需要重置的环境ID
+        if torch.any(termination):  # 如果有环境终止
+            terminated_envs = termination.nonzero(as_tuple=True)  # 获取所有终止的环境
+            print(f"Resetting environments {terminated_envs} due to Termination")  # 打印重置信息
+        if torch.any(truncation):  # 如果有环境超时
+            truncated_envs = truncation.nonzero(as_tuple=True)  # 获取所有超时的环境
+            print(f"Resetting environments {truncated_envs} due to Timeout")  # 打印重置信息
+        nn_model.reset(reset_ids)  # 重置神经网络状态
 
-    # # Uncomment the below lines to save the frames from an episode as a GIF
-    #     # save obs to file as a .gif
-    #     image1 = (
-    #         255.0 * rl_task.obs_dict["depth_range_pixels"][0, 0].cpu().numpy()
-    #     ).astype(np.uint8)
-    #     seg_image1 = rl_task.obs_dict["segmentation_pixels"][0, 0].cpu().numpy()
-    #     seg_image1[seg_image1 <= 0] = seg_image1[seg_image1 > 0].min()
-    #     seg_image1_normalized = (seg_image1 - seg_image1.min()) / (
-    #         seg_image1.max() - seg_image1.min()
-    #     )
-
-    #     # set colormap to plasma in matplotlib
-    #     seg_image1_normalized_plasma = matplotlib.cm.plasma(seg_image1_normalized)
-    #     seg_image1 = Image.fromarray((seg_image1_normalized_plasma * 255.0).astype(np.uint8))
-
-    #     depth_image1 = Image.fromarray(image1)
-    #     image_4d = np.zeros((image1.shape[0], image1.shape[1], 4))
-    #     image_4d[:, :, 0] = image1
-    #     image_4d[:, :, 1] = image1
-    #     image_4d[:, :, 2] = image1
-    #     image_4d[:, :, 3] = 255.0
-    #     merged_image = np.concatenate((image_4d, seg_image1_normalized_plasma * 255.0), axis=0)
-    #     # save frames to array:
-    #     seg_frames.append(seg_image1)
-    #     depth_frames.append(depth_image1)
-    #     merged_image_frames.append(Image.fromarray(merged_image.astype(np.uint8)))
-    # if termination[0] or truncation[0]:
-    #     print("i", i)
-    #     rl_task.reset()
-    #     # save frames as a gif:
-    #     seg_frames[0].save(
-    #         f"seg_frames_{i}.gif",
-    #         save_all=True,
-    #         append_images=seg_frames[1:],
-    #         duration=100,
-    #         loop=0,
-    #     )
-    #     depth_frames[0].save(
-    #         f"depth_frames_{i}.gif",
-    #         save_all=True,
-    #         append_images=depth_frames[1:],
-    #         duration=100,
-    #         loop=0,
-    #     )
-    #     merged_image_frames[0].save(
-    #         f"merged_image_frames_{i}.gif",
-    #         save_all=True,
-    #         append_images=merged_image_frames[1:],
-    #         duration=100,
-    #         loop=0,
-    #     )
-    #     seg_frames = []
-    #     depth_frames = []
-    #     merged_image_frames = []
-
+    # 以下代码用于保存每一集的帧作为GIF，但目前被注释掉
+    # ...
 
 def get_network(num_envs):
     """Script entry point."""
-    # register_aerialgym_custom_components()
-    cfg = parse_aerialgym_cfg(evaluation=True)
-    print("CFG is:", cfg)
-    nn_model = NN_Inference_Class(num_envs, 3, 81, cfg)
-    return nn_model
-
+    cfg = parse_aerialgym_cfg(evaluation=True)  # 解析配置文件
+    print("CFG is:", cfg)  # 打印配置内容
+    nn_model = NN_Inference_Class(num_envs, 3, 81, cfg)  # 创建神经网络推理类实例
+    return nn_model  # 返回神经网络模型
 
 if __name__ == "__main__":
     task_registry.register_task(
@@ -128,7 +68,7 @@ if __name__ == "__main__":
         task_class=DCE_RL_Navigation_Task,
         task_config=task_registry.get_task_config(
             "navigation_task"
-        ),  # same config as navigation task
+        ),  # 使用与导航任务相同的配置
     )
-    args = get_args()
-    sample_command(args)
+    args = get_args()  # 获取命令行参数
+    sample_command(args)  # 调用sample_command函数

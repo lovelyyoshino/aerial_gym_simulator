@@ -132,7 +132,7 @@ Kostas Alexis &nbsp;&nbsp;&nbsp;&nbsp; [电子邮件](mailto:konstantinos.alexis
 │   │   ├── __init__.py                  # 初始化环境管理模块
 │   │   ├── obstacle_manager.py          # 障碍物管理器
 │   │   └── warp_env_manager.py          # Warp环境管理器
-│   ├── examples
+│   ├── examples      # examples->task->sim->env_manager->robots->sensors(再细化)
 │   │   ├── acceleration_control_example.py # 加速度控制示例
 │   │   ├── benchmark.py                 # 性能基准测试
 │   │   ├── dce_rl_navigation            # DCE强化学习导航示例
@@ -159,7 +159,7 @@ Kostas Alexis &nbsp;&nbsp;&nbsp;&nbsp; [电子邮件](mailto:konstantinos.alexis
 │   │   ├── robot_registry.py            # 机器人注册表
 │   │   ├── sim_registry.py              # 仿真注册表
 │   │   └── task_registry.py             # 任务注册表
-│   ├── rl_training
+│   ├── rl_training     # rl_training->task->sim->env_manager->robots->sensors(训练好给example用)
 │   │   ├── cleanrl                      # CleanRL库实现
 │   │   ├── rl_games                     # RL Games实现
 │   │   └── sample_factory               # Sample Factory实现
@@ -228,3 +228,4 @@ Kostas Alexis &nbsp;&nbsp;&nbsp;&nbsp; [电子邮件](mailto:konstantinos.alexis
 │       └── snakey6                      # Snakey6机器人资源
 └── setup.py                             # 安装脚本
 ```
+基本流程就是rl会强化学习在场景中的策略，然后再task中为策略对应的任务。在学习完毕后会在example中调用策略完成实际使用

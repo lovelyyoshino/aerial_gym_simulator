@@ -294,7 +294,7 @@ class NavigationTask(BaseTask):
             self.image_latents[:] = self.vae_model.encode(image_obs)
 
     def step(self, actions):
-        """执行一步操作，并计算奖励和状态"""
+        """执行一步操作，并计算奖励和状态，这个还是需要和SimBuilder的仿真环境完成交互的"""
         transformed_action = self.action_transformation_function(actions)
         logger.debug(f"raw_action: {actions[0]}, transformed action: {transformed_action[0]}")
         self.sim_env.step(actions=transformed_action)
